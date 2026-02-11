@@ -8,6 +8,7 @@ import com.example.userservice.repository.UserRepository;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,8 +38,12 @@ public class UserService {
         user.setPhone(userRequestDTO.getPhone());
         user.setCreatedAt(LocalDateTime.now());
 
-        User savedUser = userRepository.save(user);
-        return "User created successfully";
+        try {
+            User savedUser = userRepository.save(user);
+            return "User created successfully";
+        } catch (DataIntegrityViolationException e) {
+            throw new DuplicateUserException("User with email " + userRequestDTO.getEmail() + " already exists");
+        }
     }
 
     private UserResponseDTO mapToResponseDTO(User user) {
@@ -55,7 +60,7 @@ public class UserService {
     }
 
     // Fallback method for Circuit Breaker
-    public UserResponseDTO fallbackCreateUser(UserRequestDTO userRequestDTO, Throwable t) {
+    public String fallbackCreateUser(UserRequestDTO userRequestDTO, Throwable t) {
         if (t instanceof DuplicateUserException || t instanceof IllegalArgumentException) {
             throw (RuntimeException) t;
         }
@@ -64,7 +69,7 @@ public class UserService {
         throw new RuntimeException("Service Unavailable: " + t.getMessage());
     }
 
-    public UserResponseDTO createUserFallback(UserRequestDTO userRequestDTO, Throwable t) {
+    public String createUserFallback(UserRequestDTO userRequestDTO, Throwable t) {
         if (t instanceof DuplicateUserException || t instanceof IllegalArgumentException) {
             throw (RuntimeException) t;
         }
